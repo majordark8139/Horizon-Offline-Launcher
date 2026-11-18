@@ -45,10 +45,10 @@ jobs:
             throw "Failed to compile Horizon-Win7-Launcher.exe"
           }
 
-      - name: Build Windows 7 Patched Client
+      - name: Build Windows 7 Patched Client and Prepare Tool
         shell: bash
         run: |
-          cargo build --release -p horizon-client --bin horizon-client
+          cargo build --release -p horizon-client --bin horizon-client -p horizon-prepare --bin horizon-prepare
 
       - name: Fetch Upstream Base Package (Assets & Shaders)
         shell: pwsh
@@ -67,7 +67,7 @@ jobs:
       - name: Assemble Windows 7 Portable Package
         shell: pwsh
         run: |
-          # Replace the client executable with our Win7 patched build
+          # Replace client and prepare executables with our Win7 patched builds
           $client = Get-ChildItem dist-win7 -Recurse -Filter "horizon-client.exe" | Select-Object -First 1
           if (-not $client) {
             throw "Could not locate horizon-client.exe in base package"
@@ -75,12 +75,24 @@ jobs:
           Copy-Item target\release\horizon-client.exe $client.FullName -Force
 
           $gameDir = $client.DirectoryName
+          if (Test-Path target\release\horizon-prepare.exe) {
+            Copy-Item target\release\horizon-prepare.exe $gameDir -Force
+          }
           Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
 
           # Create batch launch scripts
           @"
           @echo off
           title Horizon (OpenGL - Windows 7)
+          if not exist "assets\minecraft\sounds.json" (
+              if not exist "resources" (
+                  echo [Notice] Game assets not yet prepared.
+                  echo Starting auto-setup via horizon-prepare...
+                  if exist "horizon-prepare.exe" (
+                      horizon-prepare.exe --prepare --minecraft-dir "%APPDATA%\.minecraft" --output .
+                  )
+              )
+          )
           echo Starting Horizon with OpenGL backend...
           set WGPU_BACKEND=gl
           set HORIZON_TELEMETRY_URL=off
@@ -91,6 +103,15 @@ jobs:
           @"
           @echo off
           title Horizon (Vulkan - Windows 7)
+          if not exist "assets\minecraft\sounds.json" (
+              if not exist "resources" (
+                  echo [Notice] Game assets not yet prepared.
+                  echo Starting auto-setup via horizon-prepare...
+                  if exist "horizon-prepare.exe" (
+                      horizon-prepare.exe --prepare --minecraft-dir "%APPDATA%\.minecraft" --output .
+                  )
+              )
+          )
           echo Starting Horizon with Vulkan backend...
           set WGPU_BACKEND=vulkan
           set HORIZON_TELEMETRY_URL=off
@@ -108,24 +129,3 @@ jobs:
           name: Horizon-Windows7-Portable
           path: Horizon-Windows7-Portable.zip
           retention-days: 14
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: win7-client
-          name: "Horizon Windows 7 Edition (Portable)"
-          body: |
-            ### Horizon: Java Edition 26.3 rewrite for Windows 7
-
-            This portable release is specifically compiled with Windows 7 compatibility:
-            - **No WaitOnAddress crash**: Patched via internal keyed-events fallback (`NtWaitForKeyedEvent`).
-            - **No GPUI DXGI 1.6 crash**: Uses direct `winit` Win32 windowing.
-            - **Graphics**: Includes both **OpenGL** (recommended for older Win7 GPU drivers) and **Vulkan** launch modes.
-            - **Launcher**: Includes `Horizon-Win7-Launcher.exe` (a lightweight, zero-dependency .NET 4.0 launcher).
-
-            #### How to play:
-            1. Extract `Horizon-Windows7-Portable.zip`.
-            2. Run **`Horizon-Win7-Launcher.exe`** (or double-click **`Play-OpenGL.bat`**).
-            3. Enjoy!
-          files: Horizon-Windows7-Portable.zip
-          make_latest: true

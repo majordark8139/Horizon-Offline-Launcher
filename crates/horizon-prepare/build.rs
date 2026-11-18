@@ -35,4 +35,11 @@ fn main() {
     }
     let hex: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
     println!("cargo:rustc-env=HORIZON_PREPARE_SOURCES_SHA256={hex}");
+
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        cc::Build::new()
+            .file("src/win7_compat.c")
+            .compile("win7_compat");
+        println!("cargo:rustc-link-arg-bin=horizon-prepare=/FORCE:MULTIPLE");
+    }
 }

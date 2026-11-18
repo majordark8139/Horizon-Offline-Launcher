@@ -10,8 +10,11 @@ public class Win7Launcher : Form
     private RadioButton rbOpenGL;
     private RadioButton rbVulkan;
     private Button btnPlay;
+    private Button btnPrepare;
     private Label lblStatus;
+    private Label lblMinecraftPath;
     private string configFile = "horizon_win7_config.txt";
+    private string selectedMinecraftDir = "";
 
     [STAThread]
     public static void Main()
@@ -23,8 +26,8 @@ public class Win7Launcher : Form
 
     public Win7Launcher()
     {
-        this.Text = "Horizon - Windows 7 Edition";
-        this.Size = new Size(420, 280);
+        this.Text = "Horizon Offline (Windows 7 Edition)";
+        this.Size = new Size(460, 340);
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.MaximizeBox = false;
         this.StartPosition = FormStartPosition.CenterScreen;
@@ -38,7 +41,7 @@ public class Win7Launcher : Form
         {
             Text = "Horizon Offline (Windows 7)",
             Location = new Point(20, 15),
-            Size = new Size(360, 25),
+            Size = new Size(400, 25),
             Font = headerFont,
             ForeColor = Color.FromArgb(88, 101, 242)
         };
@@ -48,15 +51,15 @@ public class Win7Launcher : Form
         {
             Text = "Player Name:",
             Location = new Point(20, 55),
-            Size = new Size(100, 20),
+            Size = new Size(110, 20),
             Font = regularFont
         };
         this.Controls.Add(lblUser);
 
         txtUsername = new TextBox()
         {
-            Location = new Point(125, 52),
-            Size = new Size(245, 23),
+            Location = new Point(135, 52),
+            Size = new Size(285, 23),
             Font = regularFont,
             Text = "Player"
         };
@@ -64,18 +67,18 @@ public class Win7Launcher : Form
 
         Label lblGfx = new Label()
         {
-            Text = "Graphics API:",
-            Location = new Point(20, 95),
-            Size = new Size(100, 20),
+            Text = "Graphics Mode:",
+            Location = new Point(20, 90),
+            Size = new Size(110, 20),
             Font = regularFont
         };
         this.Controls.Add(lblGfx);
 
         rbOpenGL = new RadioButton()
         {
-            Text = "OpenGL (Recommended for Win7)",
-            Location = new Point(125, 93),
-            Size = new Size(250, 22),
+            Text = "OpenGL (Recommended for Windows 7)",
+            Location = new Point(135, 88),
+            Size = new Size(285, 22),
             Font = regularFont,
             Checked = true
         };
@@ -83,19 +86,43 @@ public class Win7Launcher : Form
 
         rbVulkan = new RadioButton()
         {
-            Text = "Vulkan (If supported by your GPU driver)",
-            Location = new Point(125, 120),
-            Size = new Size(260, 22),
+            Text = "Vulkan (Only if your GPU driver supports it)",
+            Location = new Point(135, 112),
+            Size = new Size(285, 22),
             Font = regularFont
         };
         this.Controls.Add(rbVulkan);
 
+        lblMinecraftPath = new Label()
+        {
+            Text = "Minecraft Assets: Checking...",
+            Location = new Point(20, 145),
+            Size = new Size(310, 30),
+            Font = new Font("Segoe UI", 8, FontStyle.Regular),
+            ForeColor = Color.LightGray
+        };
+        this.Controls.Add(lblMinecraftPath);
+
+        btnPrepare = new Button()
+        {
+            Text = "Browse...",
+            Location = new Point(340, 143),
+            Size = new Size(80, 28),
+            Font = regularFont,
+            BackColor = Color.FromArgb(64, 68, 75),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat
+        };
+        btnPrepare.FlatAppearance.BorderSize = 0;
+        btnPrepare.Click += BtnBrowse_Click;
+        this.Controls.Add(btnPrepare);
+
         btnPlay = new Button()
         {
             Text = "PLAY HORIZON",
-            Location = new Point(20, 160),
-            Size = new Size(360, 42),
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            Location = new Point(20, 190),
+            Size = new Size(400, 48),
+            Font = new Font("Segoe UI", 12, FontStyle.Bold),
             BackColor = Color.FromArgb(46, 125, 50),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat
@@ -106,16 +133,122 @@ public class Win7Launcher : Form
 
         lblStatus = new Label()
         {
-            Text = "Ready to start",
-            Location = new Point(20, 215),
-            Size = new Size(360, 20),
-            Font = new Font("Segoe UI", 8, FontStyle.Italic),
+            Text = "Checking assets...",
+            Location = new Point(20, 255),
+            Size = new Size(400, 25),
+            Font = new Font("Segoe UI", 9, FontStyle.Italic),
             ForeColor = Color.Gray,
             TextAlign = ContentAlignment.MiddleCenter
         };
         this.Controls.Add(lblStatus);
 
         LoadConfig();
+        AutoDetectAssets();
+    }
+
+    private string FindDefaultMinecraftDir()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string[] candidates = new string[]
+        {
+            Path.Combine(appData, ".minecraft"),
+            Path.Combine(appData, "PrismLauncher"),
+            Path.Combine(appData, "MultiMC"),
+            Path.Combine(appData, "ModrinthApp"),
+            Path.Combine(appData, "ATLauncher"),
+            Path.Combine(appData, ".tlauncher")
+        };
+
+        foreach (string path in candidates)
+        {
+            if (Directory.Exists(path)) return path;
+        }
+        return "";
+    }
+
+    private bool AreResourcesReady()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDir, "assets", "minecraft", "sounds.json"))) return true;
+        if (Directory.Exists(Path.Combine(baseDir, "resources"))) return true;
+        return false;
+    }
+
+    private void AutoDetectAssets()
+    {
+        if (AreResourcesReady())
+        {
+            lblMinecraftPath.Text = "Game Assets: Ready to play";
+            lblMinecraftPath.ForeColor = Color.LightGreen;
+            lblStatus.Text = "Ready to start";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(selectedMinecraftDir) || !Directory.Exists(selectedMinecraftDir))
+        {
+            selectedMinecraftDir = FindDefaultMinecraftDir();
+        }
+
+        if (!string.IsNullOrEmpty(selectedMinecraftDir))
+        {
+            lblMinecraftPath.Text = "Found Minecraft: " + Path.GetFileName(selectedMinecraftDir);
+            lblMinecraftPath.ForeColor = Color.Orange;
+            lblStatus.Text = "First launch: Click PLAY to auto-prepare assets";
+        }
+        else
+        {
+            lblMinecraftPath.Text = "Assets missing! Click Browse to locate .minecraft";
+            lblMinecraftPath.ForeColor = Color.LightCoral;
+            lblStatus.Text = "Minecraft folder required for initial setup";
+        }
+    }
+
+    private void BtnBrowse_Click(object sender, EventArgs e)
+    {
+        using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+        {
+            fbd.Description = "Select your .minecraft folder (or Prism/TLauncher folder)";
+            if (fbd.ShowDialog() == DialogResult.OK)
+            {
+                selectedMinecraftDir = fbd.SelectedPath;
+                AutoDetectAssets();
+                SaveConfig();
+            }
+        }
+    }
+
+    private bool RunPrepare(string mcDir)
+    {
+        string prepareExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "horizon-prepare.exe");
+        if (!File.Exists(prepareExe))
+        {
+            return false;
+        }
+
+        lblStatus.Text = "Preparing game assets from Minecraft (one-time setup)...";
+        lblStatus.ForeColor = Color.Yellow;
+        Application.DoEvents();
+
+        ProcessStartInfo psi = new ProcessStartInfo();
+        psi.FileName = prepareExe;
+        psi.Arguments = "--prepare --minecraft-dir \"" + mcDir + "\" --output .";
+        psi.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        psi.WindowStyle = ProcessWindowStyle.Hidden;
+        psi.CreateNoWindow = true;
+        psi.UseShellExecute = false;
+
+        try
+        {
+            using (Process p = Process.Start(psi))
+            {
+                p.WaitForExit();
+                return p.ExitCode == 0 || AreResourcesReady();
+            }
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void LoadConfig()
@@ -130,6 +263,7 @@ public class Win7Launcher : Form
                     if (line.StartsWith("username=")) txtUsername.Text = line.Substring(9).Trim();
                     if (line.StartsWith("backend=vulkan")) { rbVulkan.Checked = true; rbOpenGL.Checked = false; }
                     if (line.StartsWith("backend=gl")) { rbOpenGL.Checked = true; rbVulkan.Checked = false; }
+                    if (line.StartsWith("mcdir=")) selectedMinecraftDir = line.Substring(6).Trim();
                 }
             }
         }
@@ -143,7 +277,8 @@ public class Win7Launcher : Form
             string backend = rbVulkan.Checked ? "vulkan" : "gl";
             File.WriteAllLines(configFile, new string[] {
                 "username=" + txtUsername.Text.Trim(),
-                "backend=" + backend
+                "backend=" + backend,
+                "mcdir=" + selectedMinecraftDir
             });
         }
         catch { }
@@ -159,6 +294,33 @@ public class Win7Launcher : Form
         }
 
         SaveConfig();
+
+        if (!AreResourcesReady())
+        {
+            if (string.IsNullOrEmpty(selectedMinecraftDir) || !Directory.Exists(selectedMinecraftDir))
+            {
+                selectedMinecraftDir = FindDefaultMinecraftDir();
+            }
+
+            if (string.IsNullOrEmpty(selectedMinecraftDir))
+            {
+                MessageBox.Show("First launch setup: Please select your Minecraft folder to extract game textures and sounds.", "Assets Needed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                BtnBrowse_Click(sender, e);
+                if (string.IsNullOrEmpty(selectedMinecraftDir)) return;
+            }
+
+            btnPlay.Enabled = false;
+            bool ok = RunPrepare(selectedMinecraftDir);
+            btnPlay.Enabled = true;
+
+            if (!ok && !AreResourcesReady())
+            {
+                MessageBox.Show("Could not extract assets from the selected folder.\nPlease ensure it contains a valid Minecraft 26.3 installation.", "Preparation Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                lblStatus.Text = "Preparation failed";
+                lblStatus.ForeColor = Color.Red;
+                return;
+            }
+        }
 
         string user = txtUsername.Text.Trim();
         if (string.IsNullOrEmpty(user)) user = "Player";

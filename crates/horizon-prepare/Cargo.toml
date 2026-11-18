@@ -18,6 +18,7 @@ libc = "0.2"
 
 [build-dependencies]
 sha2 = "0.10"
+cc = "1.0"
 
 [[bin]]
 name = "horizon-prepare"
