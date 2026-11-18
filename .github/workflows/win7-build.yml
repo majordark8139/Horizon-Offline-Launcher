@@ -1,0 +1,131 @@
+name: Build Horizon Windows 7 Edition
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - '.github/workflows/win7-build.yml'
+      - 'tools/win7_launcher/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-win7:
+    name: Build Windows 7 Portable Client
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      RUSTFLAGS: "-C target-feature=+crt-static"
+      HORIZON_TELEMETRY_URL: "off"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: win7-client-build
+
+      - name: Compile Windows 7 GUI Launcher
+        shell: pwsh
+        run: |
+          $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) {
+            $csc = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+          }
+          & $csc /target:winexe /out:Horizon-Win7-Launcher.exe tools\win7_launcher\Win7Launcher.cs
+          if (-not (Test-Path Horizon-Win7-Launcher.exe)) {
+            throw "Failed to compile Horizon-Win7-Launcher.exe"
+          }
+
+      - name: Build Windows 7 Patched Client
+        shell: bash
+        run: |
+          cargo build --release --locked -p horizon-client --bin horizon-client
+
+      - name: Fetch Upstream Base Package (Assets & Shaders)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          try {
+            gh release download nightly -R horizon-rust/horizon -p "horizon-windows-x64.zip"
+          } catch {
+            Write-Warning "Upstream nightly fetch failed; downloading from gerdaroot releases..."
+            gh release download nightly -R gerdaroot/Horizon-Offline-Launcher -p "horizon-windows-x64.zip"
+          }
+          7z x horizon-windows-x64.zip -o"dist-win7"
+          Remove-Item horizon-windows-x64.zip
+
+      - name: Assemble Windows 7 Portable Package
+        shell: pwsh
+        run: |
+          # Replace the client executable with our Win7 patched build
+          $client = Get-ChildItem dist-win7 -Recurse -Filter "horizon-client.exe" | Select-Object -First 1
+          if (-not $client) {
+            throw "Could not locate horizon-client.exe in base package"
+          }
+          Copy-Item target\release\horizon-client.exe $client.FullName -Force
+
+          $gameDir = $client.DirectoryName
+          Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
+
+          # Create batch launch scripts
+          @"
+          @echo off
+          title Horizon (OpenGL - Windows 7)
+          echo Starting Horizon with OpenGL backend...
+          set WGPU_BACKEND=gl
+          set HORIZON_TELEMETRY_URL=off
+          horizon-client.exe --home . --resources .
+          pause
+          "@ | Set-Content (Join-Path $gameDir "Play-OpenGL.bat")
+
+          @"
+          @echo off
+          title Horizon (Vulkan - Windows 7)
+          echo Starting Horizon with Vulkan backend...
+          set WGPU_BACKEND=vulkan
+          set HORIZON_TELEMETRY_URL=off
+          horizon-client.exe --home . --resources .
+          pause
+          "@ | Set-Content (Join-Path $gameDir "Play-Vulkan.bat")
+
+          # Create distribution zip
+          7z a -tzip Horizon-Windows7-Portable.zip "$gameDir\*"
+          Get-Item Horizon-Windows7-Portable.zip
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Horizon-Windows7-Portable
+          path: Horizon-Windows7-Portable.zip
+          retention-days: 14
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: win7-client
+          name: "Horizon Windows 7 Edition (Portable)"
+          body: |
+            ### Horizon: Java Edition 26.3 rewrite for Windows 7
+
+            This portable release is specifically compiled with Windows 7 compatibility:
+            - **No WaitOnAddress crash**: Patched via internal keyed-events fallback (`NtWaitForKeyedEvent`).
+            - **No GPUI DXGI 1.6 crash**: Uses direct `winit` Win32 windowing.
+            - **Graphics**: Includes both **OpenGL** (recommended for older Win7 GPU drivers) and **Vulkan** launch modes.
+            - **Launcher**: Includes `Horizon-Win7-Launcher.exe` (a lightweight, zero-dependency .NET 4.0 launcher).
+
+            #### How to play:
+            1. Extract `Horizon-Windows7-Portable.zip`.
+            2. Run **`Horizon-Win7-Launcher.exe`** (or double-click **`Play-OpenGL.bat`**).
+            3. Enjoy!
+          files: Horizon-Windows7-Portable.zip
+          make_latest: true

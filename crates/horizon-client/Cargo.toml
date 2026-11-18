@@ -161,8 +161,8 @@ path = "examples/wind_burst_hook_probe.rs"
 
 [build-dependencies]
 horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
-# The build script runs on the host, but embeds resources based on the target OS.
 winresource = "0.1"
+cc = "1.0"
 
 [lints]
 workspace = true
