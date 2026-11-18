@@ -1,5 +1,7 @@
 #include <windows.h>
 
+#pragma comment(lib, "advapi32.lib")
+
 typedef LONG NTSTATUS;
 #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
 #define STATUS_TIMEOUT ((NTSTATUS)0x00000102L)
@@ -130,3 +132,54 @@ VOID WINAPI WakeByAddressAll(PVOID Address) {
 pfnWaitOnAddress_t __imp_WaitOnAddress = Win7_WaitOnAddress;
 pfnWakeByAddress_t __imp_WakeByAddressSingle = Win7_WakeByAddressSingle;
 pfnWakeByAddress_t __imp_WakeByAddressAll = Win7_WakeByAddressAll;
+
+/* ProcessPrng polyfill for bcryptprimitives.dll */
+typedef BOOLEAN (WINAPI *pfnRtlGenRandom)(PVOID RandomBuffer, ULONG RandomBufferLength);
+static pfnRtlGenRandom g_RtlGenRandom = NULL;
+
+BOOL WINAPI Win7_ProcessPrng(PBYTE pbBuffer, SIZE_T cbBuffer) {
+    if (!g_RtlGenRandom) {
+        HMODULE hAdvapi32 = GetModuleHandleW(L"advapi32.dll");
+        if (!hAdvapi32) {
+            hAdvapi32 = LoadLibraryW(L"advapi32.dll");
+        }
+        if (hAdvapi32) {
+            g_RtlGenRandom = (pfnRtlGenRandom)GetProcAddress(hAdvapi32, "SystemFunction036");
+        }
+    }
+    if (g_RtlGenRandom) {
+        return (BOOL)g_RtlGenRandom(pbBuffer, (ULONG)cbBuffer);
+    }
+    return FALSE;
+}
+
+BOOL WINAPI ProcessPrng(PBYTE pbBuffer, SIZE_T cbBuffer) {
+    return Win7_ProcessPrng(pbBuffer, cbBuffer);
+}
+
+typedef BOOL (WINAPI *pfnProcessPrng_t)(PBYTE pbBuffer, SIZE_T cbBuffer);
+pfnProcessPrng_t __imp_ProcessPrng = Win7_ProcessPrng;
+
+/* GetSystemTimePreciseAsFileTime polyfill for kernel32.dll */
+typedef VOID (WINAPI *pfnGetSystemTimePreciseAsFileTime_t)(LPFILETIME lpSystemTimeAsFileTime);
+static pfnGetSystemTimePreciseAsFileTime_t g_RealGetSystemTimePreciseAsFileTime = NULL;
+
+VOID WINAPI Win7_GetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTime) {
+    if (!g_RealGetSystemTimePreciseAsFileTime) {
+        HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (hKernel32) {
+            g_RealGetSystemTimePreciseAsFileTime = (pfnGetSystemTimePreciseAsFileTime_t)GetProcAddress(hKernel32, "GetSystemTimePreciseAsFileTime");
+        }
+    }
+    if (g_RealGetSystemTimePreciseAsFileTime) {
+        g_RealGetSystemTimePreciseAsFileTime(lpSystemTimeAsFileTime);
+    } else {
+        GetSystemTimeAsFileTime(lpSystemTimeAsFileTime);
+    }
+}
+
+VOID WINAPI GetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTime) {
+    Win7_GetSystemTimePreciseAsFileTime(lpSystemTimeAsFileTime);
+}
+
+pfnGetSystemTimePreciseAsFileTime_t __imp_GetSystemTimePreciseAsFileTime = Win7_GetSystemTimePreciseAsFileTime;

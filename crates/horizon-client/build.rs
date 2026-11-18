@@ -22,6 +22,7 @@ fn main() {
             .compile("win7_compat");
         println!("cargo:rerun-if-changed=src/win7_compat.c");
         println!("cargo:rustc-link-arg-bin=horizon-client=/FORCE:MULTIPLE");
+        println!("cargo:rustc-link-lib=advapi32");
         println!("cargo:rerun-if-env-changed=WINDRES");
         println!("cargo:rerun-if-env-changed=AR");
         println!("cargo:rerun-if-env-changed=RC_PATH");

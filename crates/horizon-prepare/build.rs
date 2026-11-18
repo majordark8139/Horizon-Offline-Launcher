@@ -41,5 +41,6 @@ fn main() {
             .file("src/win7_compat.c")
             .compile("win7_compat");
         println!("cargo:rustc-link-arg-bin=horizon-prepare=/FORCE:MULTIPLE");
+        println!("cargo:rustc-link-lib=advapi32");
     }
 }
