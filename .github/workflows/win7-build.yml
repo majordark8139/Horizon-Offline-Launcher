@@ -48,7 +48,7 @@ jobs:
       - name: Build Windows 7 Patched Client
         shell: bash
         run: |
-          cargo build --release --locked -p horizon-client --bin horizon-client
+          cargo build --release -p horizon-client --bin horizon-client
 
       - name: Fetch Upstream Base Package (Assets & Shaders)
         shell: pwsh
