@@ -64,6 +64,44 @@ jobs:
           7z x horizon-windows-x64.zip -o"dist-win7"
           Remove-Item horizon-windows-x64.zip
 
+      - name: Setup Java 25 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Pre-generate Game Resources
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $clientUrl = "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar"
+          $serverUrl = "https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar"
+          $manifestUrl = "https://piston-meta.mojang.com/v1/packages/ead839cbccf0ddf013c3f935f2840080b5cb0d26/26.3.json"
+
+          New-Item -ItemType Directory -Path "mock_mc\versions\26.3" -Force | Out-Null
+          New-Item -ItemType Directory -Path "mock_mc\libraries" -Force | Out-Null
+
+          curl.exe -s -L -o "mock_mc\versions\26.3\26.3.jar" $clientUrl
+          curl.exe -s -L -o "server.jar" $serverUrl
+          curl.exe -s -L -o "mock_mc\versions\26.3\26.3.json" $manifestUrl
+
+          $json = Get-Content "mock_mc\versions\26.3\26.3.json" -Raw | ConvertFrom-Json
+          foreach ($lib in $json.libraries) {
+              if ($lib.downloads.artifact) {
+                  $libPath = Join-Path "mock_mc\libraries" $lib.downloads.artifact.path
+                  $libDir = Split-Path $libPath -Parent
+                  if (-not (Test-Path $libDir)) {
+                      New-Item -ItemType Directory -Path $libDir -Force | Out-Null
+                  }
+                  if (-not (Test-Path $libPath)) {
+                      curl.exe -s -L -o $libPath $lib.downloads.artifact.url
+                  }
+              }
+          }
+
+          New-Item -ItemType Directory -Path "dist_resources" -Force | Out-Null
+          & target\release\horizon-prepare.exe --prepare --minecraft-dir mock_mc --server-jar server.jar --output dist_resources
+
       - name: Assemble Windows 7 Portable Package
         shell: pwsh
         run: |
@@ -80,21 +118,41 @@ jobs:
           }
           Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
 
+          # Bundle pre-generated resources if available
+          if (Test-Path dist_resources\horizon-resources.json) {
+            Copy-Item dist_resources $gameDir\resources -Recurse -Force
+          }
+          if (Test-Path mock_mc\versions\26.3\26.3.jar) {
+            Copy-Item mock_mc\versions\26.3\26.3.jar $gameDir\26.3.jar -Force
+          }
+
+          # Pre-seed conservative defaults for Haswell (HD 4400) / 4GB RAM
+          @"
+          renderDistance:6
+          "@ | Set-Content (Join-Path $gameDir "options.txt")
+
+          @"
+          opengl
+          renderDistance: 6
+          lodDistance: 0
+          hdr: false
+          dynamicResolution: true
+          fxaa: false
+          taa: false
+          workerThreads: 2
+          "@ | Set-Content (Join-Path $gameDir "horizon-graphics.txt")
+
           # Create batch launch scripts
           @"
           @echo off
           title Horizon (OpenGL - Windows 7)
-          if not exist "assets\minecraft\sounds.json" (
-              if not exist "resources" (
-                  echo [Notice] Game assets not yet prepared.
-                  echo Starting auto-setup via horizon-prepare...
-                  if exist "horizon-prepare.exe" (
-                      horizon-prepare.exe --prepare --minecraft-dir "%APPDATA%\.minecraft" --output .
-                  )
-              )
-          )
-          echo Starting Horizon with OpenGL backend...
+          echo Starting Horizon with Intel HD Graphics / Windows 7 optimizations...
           set WGPU_BACKEND=gl
+          set WGPU_VALIDATION=0
+          set WGPU_DEBUG=0
+          set WGPU_DISCARD_HAL_LABELS=1
+          set MIMALLOC_PURGE_DELAY=100
+          set MIMALLOC_EAGER_COMMIT=0
           set HORIZON_TELEMETRY_URL=off
           horizon-client.exe --home . --resources .
           pause
@@ -103,17 +161,13 @@ jobs:
           @"
           @echo off
           title Horizon (Vulkan - Windows 7)
-          if not exist "assets\minecraft\sounds.json" (
-              if not exist "resources" (
-                  echo [Notice] Game assets not yet prepared.
-                  echo Starting auto-setup via horizon-prepare...
-                  if exist "horizon-prepare.exe" (
-                      horizon-prepare.exe --prepare --minecraft-dir "%APPDATA%\.minecraft" --output .
-                  )
-              )
-          )
           echo Starting Horizon with Vulkan backend...
           set WGPU_BACKEND=vulkan
+          set WGPU_VALIDATION=0
+          set WGPU_DEBUG=0
+          set WGPU_DISCARD_HAL_LABELS=1
+          set MIMALLOC_PURGE_DELAY=100
+          set MIMALLOC_EAGER_COMMIT=0
           set HORIZON_TELEMETRY_URL=off
           horizon-client.exe --home . --resources .
           pause

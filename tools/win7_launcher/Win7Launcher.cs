@@ -339,6 +339,11 @@ public class Win7Launcher : Form
             psi.EnvironmentVariables["WGPU_BACKEND"] = "vulkan";
         }
 
+        psi.EnvironmentVariables["WGPU_VALIDATION"] = "0";
+        psi.EnvironmentVariables["WGPU_DEBUG"] = "0";
+        psi.EnvironmentVariables["WGPU_DISCARD_HAL_LABELS"] = "1";
+        psi.EnvironmentVariables["MIMALLOC_PURGE_DELAY"] = "100";
+        psi.EnvironmentVariables["MIMALLOC_EAGER_COMMIT"] = "0";
         psi.EnvironmentVariables["HORIZON_OFFLINE_NAME"] = user;
         psi.EnvironmentVariables["HORIZON_TELEMETRY_URL"] = "off";
         psi.UseShellExecute = false;
