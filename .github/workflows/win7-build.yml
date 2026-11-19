@@ -76,7 +76,7 @@ jobs:
         run: |
           $clientUrl = "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar"
           $serverUrl = "https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar"
-          $manifestUrl = "https://piston-meta.mojang.com/v1/packages/ead839cbccf0ddf013c3f935f2840080b5cb0d26/26.3.json"
+          $manifestUrl = "https://piston-meta.mojang.com/v1/packages/11f1aefe473eefba0af62e3286c33b692807b2eb/26.3.json"
 
           New-Item -ItemType Directory -Path "mock_mc\versions\26.3" -Force | Out-Null
           New-Item -ItemType Directory -Path "mock_mc\libraries" -Force | Out-Null
