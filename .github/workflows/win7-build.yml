@@ -93,6 +93,17 @@ jobs:
         with:
           shared-key: win7-client-build
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile Windows 7 combase.dll Proxy
+        shell: pwsh
+        run: |
+          cl.exe /O2 /LD /MT /W3 tools\win7_compat\combase.c /link /DEF:tools\win7_compat\combase.def /OUT:combase.dll kernel32.lib ole32.lib
+          if (-not (Test-Path combase.dll)) {
+            throw "Failed to compile combase.dll"
+          }
+
       - name: Compile Windows 7 GUI Launcher
         shell: pwsh
         run: |
@@ -145,6 +156,9 @@ jobs:
             Copy-Item target\release\horizon-prepare.exe $gameDir -Force
           }
           Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
+          if (Test-Path combase.dll) {
+            Copy-Item combase.dll $gameDir -Force
+          }
 
           # Unpack and bundle pre-generated resources
           New-Item -ItemType Directory -Path "$gameDir\resources" -Force | Out-Null

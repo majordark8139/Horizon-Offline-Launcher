@@ -359,7 +359,24 @@ public class Win7Launcher : Form
         {
             lblStatus.Text = "Launching game...";
             lblStatus.ForeColor = Color.LightGreen;
-            Process.Start(psi);
+            Process p = Process.Start(psi);
+            if (p != null)
+            {
+                p.EnableRaisingEvents = true;
+                p.Exited += (s, ev) =>
+                {
+                    try
+                    {
+                        this.Invoke(new MethodInvoker(() =>
+                        {
+                            this.WindowState = FormWindowState.Normal;
+                            lblStatus.Text = "Game closed (exit code " + p.ExitCode + ")";
+                            lblStatus.ForeColor = p.ExitCode == 0 ? Color.LightGreen : Color.Orange;
+                        }));
+                    }
+                    catch { }
+                };
+            }
             this.WindowState = FormWindowState.Minimized;
         }
         catch (Exception ex)

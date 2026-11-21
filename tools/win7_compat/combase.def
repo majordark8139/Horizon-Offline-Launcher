@@ -1,0 +1,126 @@
+LIBRARY combase
+EXPORTS
+    ; =========================================================================
+    ; 1. Classic COM APIs forwarded directly to Windows 7 SP1 ole32.dll
+    ; =========================================================================
+    CoInitialize                         = ole32.CoInitialize
+    CoInitializeEx                       = ole32.CoInitializeEx
+    CoUninitialize                       = ole32.CoUninitialize
+    CoCreateInstance                     = ole32.CoCreateInstance
+    CoCreateInstanceEx                   = ole32.CoCreateInstanceEx
+    CoGetClassObject                     = ole32.CoGetClassObject
+    CoRegisterClassObject                = ole32.CoRegisterClassObject
+    CoRevokeClassObject                  = ole32.CoRevokeClassObject
+
+    CoTaskMemAlloc                       = ole32.CoTaskMemAlloc
+    CoTaskMemRealloc                     = ole32.CoTaskMemRealloc
+    CoTaskMemFree                        = ole32.CoTaskMemFree
+    CoGetMalloc                          = ole32.CoGetMalloc
+
+    CoCreateGuid                         = ole32.CoCreateGuid
+    StringFromGUID2                      = ole32.StringFromGUID2
+    StringFromCLSID                      = ole32.StringFromCLSID
+    StringFromIID                        = ole32.StringFromIID
+    CLSIDFromString                      = ole32.CLSIDFromString
+    IIDFromString                        = ole32.IIDFromString
+    CLSIDFromProgID                      = ole32.CLSIDFromProgID
+    CLSIDFromProgIDEx                    = ole32.CLSIDFromProgIDEx
+    ProgIDFromCLSID                      = ole32.ProgIDFromCLSID
+
+    CoGetApartmentType                   = ole32.CoGetApartmentType
+    CoGetContextToken                    = ole32.CoGetContextToken
+    CoGetObjectContext                   = ole32.CoGetObjectContext
+    CoGetCurrentProcess                  = ole32.CoGetCurrentProcess
+    CoGetCurrentLogicalThreadId          = ole32.CoGetCurrentLogicalThreadId
+    CoGetCallerTID                       = ole32.CoGetCallerTID
+
+    CoCreateFreeThreadedMarshaler        = ole32.CoCreateFreeThreadedMarshaler
+    CoMarshalInterface                   = ole32.CoMarshalInterface
+    CoUnmarshalInterface                 = ole32.CoUnmarshalInterface
+    CoMarshalInterThreadInterfaceInStream = ole32.CoMarshalInterThreadInterfaceInStream
+    CoGetInterfaceAndReleaseStream       = ole32.CoGetInterfaceAndReleaseStream
+    CoReleaseMarshalData                 = ole32.CoReleaseMarshalData
+    CoGetMarshalSizeMax                  = ole32.CoGetMarshalSizeMax
+    CoGetStandardMarshal                 = ole32.CoGetStandardMarshal
+    CoGetStdMarshalEx                    = ole32.CoGetStdMarshalEx
+    CoDisconnectObject                   = ole32.CoDisconnectObject
+    CoLockObjectExternal                 = ole32.CoLockObjectExternal
+    CoIsHandlerConnected                 = ole32.CoIsHandlerConnected
+
+    CoFreeUnusedLibraries                = ole32.CoFreeUnusedLibraries
+    CoFreeUnusedLibrariesEx              = ole32.CoFreeUnusedLibrariesEx
+    CoInitializeSecurity                 = ole32.CoInitializeSecurity
+    CoSetProxyBlanket                    = ole32.CoSetProxyBlanket
+    CoQueryProxyBlanket                  = ole32.CoQueryProxyBlanket
+    CoCopyProxy                          = ole32.CoCopyProxy
+    CoImpersonateClient                  = ole32.CoImpersonateClient
+    CoRevertToSelf                       = ole32.CoRevertToSelf
+    CoQueryClientBlanket                 = ole32.CoQueryClientBlanket
+    CoGetCallContext                     = ole32.CoGetCallContext
+    CoSwitchCallContext                  = ole32.CoSwitchCallContext
+
+    CoWaitForMultipleHandles             = ole32.CoWaitForMultipleHandles
+    CoRegisterMessageFilter              = ole32.CoRegisterMessageFilter
+    CoDisableCallCancellation            = ole32.CoDisableCallCancellation
+    CoEnableCallCancellation             = ole32.CoEnableCallCancellation
+    CoCancelCall                         = ole32.CoCancelCall
+    CoTestCancel                         = ole32.CoTestCancel
+    CoGetTreatAsClass                    = ole32.CoGetTreatAsClass
+    CoAllowSetForegroundWindow           = ole32.CoAllowSetForegroundWindow
+    CoAddRefServerProcess                = ole32.CoAddRefServerProcess
+    CoReleaseServerProcess               = ole32.CoReleaseServerProcess
+    CoResumeClassObjects                 = ole32.CoResumeClassObjects
+    CoSuspendClassObjects                = ole32.CoSuspendClassObjects
+    CoRegisterSurrogate                  = ole32.CoRegisterSurrogate
+    CoRegisterInitializeSpy              = ole32.CoRegisterInitializeSpy
+    CoRevokeInitializeSpy                = ole32.CoRevokeInitializeSpy
+    CoRegisterMallocSpy                  = ole32.CoRegisterMallocSpy
+    CoRevokeMallocSpy                    = ole32.CoRevokeMallocSpy
+
+    CreateStreamOnHGlobal                = ole32.CreateStreamOnHGlobal
+    GetHGlobalFromStream                 = ole32.GetHGlobalFromStream
+    PropVariantClear                     = ole32.PropVariantClear
+    PropVariantCopy                      = ole32.PropVariantCopy
+    FreePropVariantArray                 = ole32.FreePropVariantArray
+
+    ; =========================================================================
+    ; 2. Win8+ COM APIs polyfilled in combase.c (absent from Win7 ole32.dll)
+    ; =========================================================================
+    CoIncrementMTAUsage
+    CoDecrementMTAUsage
+    CoWaitForMultipleObjects
+    CoCreateInstanceFromApp
+    CoDecodeProxy
+
+    ; =========================================================================
+    ; 3. WinRT Runtime, Restricted Error Info, and HSTRING APIs in combase.c
+    ; =========================================================================
+    RoInitialize
+    RoUninitialize
+    RoGetActivationFactory
+    RoActivateInstance
+    RoOriginateError
+    RoOriginateErrorW
+    RoOriginateLanguageException
+    RoTransformError
+    RoTransformErrorW
+    SetRestrictedErrorInfo
+    GetRestrictedErrorInfo
+    RoReportUnhandledError
+    RoGetAgileReference
+    RoRegisterActivationFactories
+    RoRevokeActivationFactories
+    RoGetParameterizedTypeInstanceIID
+
+    WindowsCreateString
+    WindowsCreateStringReference
+    WindowsDeleteString
+    WindowsDuplicateString
+    WindowsGetStringRawBuffer
+    WindowsGetStringLen
+    WindowsIsStringEmpty
+    WindowsStringHasEmbeddedNull
+    WindowsCompareStringOrdinal
+    WindowsPreallocateStringBuffer
+    WindowsPromoteStringBuffer
+    WindowsDeleteStringBuffer
