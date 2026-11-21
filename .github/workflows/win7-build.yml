@@ -13,9 +13,69 @@ permissions:
   contents: write
 
 jobs:
+  prepare-assets:
+    name: Prepare Minecraft 26.3 Assets (Linux Headless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Java 25 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Build Horizon Prepare Tool
+        run: cargo build --release -p horizon-prepare --bin horizon-prepare
+
+      - name: Download Minecraft 26.3 Jars and Libraries
+        run: |
+          mkdir -p mock_mc/versions/26.3 mock_mc/libraries dist_resources
+          curl -sL -o mock_mc/versions/26.3/26.3.jar https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar
+          curl -sL -o server.jar https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+          curl -sL -o mock_mc/versions/26.3/26.3.json https://piston-meta.mojang.com/v1/packages/11f1aefe473eefba0af62e3286c33b692807b2eb/26.3.json
+
+          python3 - << 'EOF'
+          import json, os, urllib.request
+
+          with open("mock_mc/versions/26.3/26.3.json") as f:
+              data = json.load(f)
+
+          for lib in data.get("libraries", []):
+              art = lib.get("downloads", {}).get("artifact")
+              if art:
+                  dest = os.path.join("mock_mc/libraries", art["path"])
+                  os.makedirs(os.path.dirname(dest), exist_ok=True)
+                  if not os.path.exists(dest):
+                      urllib.request.urlretrieve(art["url"], dest)
+          EOF
+
+      - name: Extract and Generate Game Resources
+        run: |
+          ./target/release/horizon-prepare --prepare --minecraft-dir mock_mc --server-jar server.jar --output dist_resources
+
+      - name: Pack Prepared Resources
+        run: |
+          cp mock_mc/versions/26.3/26.3.jar dist_resources/26.3.jar
+          tar -czf prepared-resources.tar.gz -C dist_resources .
+
+      - name: Upload Resources Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepared-resources
+          path: prepared-resources.tar.gz
+          retention-days: 1
+
   build-win7:
     name: Build Windows 7 Portable Client
     runs-on: windows-latest
+    needs: prepare-assets
     timeout-minutes: 120
     env:
       RUSTFLAGS: "-C target-feature=+crt-static"
@@ -64,43 +124,11 @@ jobs:
           7z x horizon-windows-x64.zip -o"dist-win7"
           Remove-Item horizon-windows-x64.zip
 
-      - name: Setup Java 25 (Temurin)
-        uses: actions/setup-java@v4
+      - name: Download Prepared Resources
+        uses: actions/download-artifact@v4
         with:
-          distribution: 'temurin'
-          java-version: '25'
-
-      - name: Pre-generate Game Resources
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $clientUrl = "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar"
-          $serverUrl = "https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar"
-          $manifestUrl = "https://piston-meta.mojang.com/v1/packages/11f1aefe473eefba0af62e3286c33b692807b2eb/26.3.json"
-
-          New-Item -ItemType Directory -Path "mock_mc\versions\26.3" -Force | Out-Null
-          New-Item -ItemType Directory -Path "mock_mc\libraries" -Force | Out-Null
-
-          curl.exe -s -L -o "mock_mc\versions\26.3\26.3.jar" $clientUrl
-          curl.exe -s -L -o "server.jar" $serverUrl
-          curl.exe -s -L -o "mock_mc\versions\26.3\26.3.json" $manifestUrl
-
-          $json = Get-Content "mock_mc\versions\26.3\26.3.json" -Raw | ConvertFrom-Json
-          foreach ($lib in $json.libraries) {
-              if ($lib.downloads.artifact) {
-                  $libPath = Join-Path "mock_mc\libraries" $lib.downloads.artifact.path
-                  $libDir = Split-Path $libPath -Parent
-                  if (-not (Test-Path $libDir)) {
-                      New-Item -ItemType Directory -Path $libDir -Force | Out-Null
-                  }
-                  if (-not (Test-Path $libPath)) {
-                      curl.exe -s -L -o $libPath $lib.downloads.artifact.url
-                  }
-              }
-          }
-
-          New-Item -ItemType Directory -Path "dist_resources" -Force | Out-Null
-          & target\release\horizon-prepare.exe --prepare --minecraft-dir mock_mc --server-jar server.jar --output dist_resources
+          name: prepared-resources
+          path: resources_download
 
       - name: Assemble Windows 7 Portable Package
         shell: pwsh
@@ -118,13 +146,10 @@ jobs:
           }
           Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
 
-          # Bundle pre-generated resources if available
-          if (Test-Path dist_resources\horizon-resources.json) {
-            Copy-Item dist_resources $gameDir\resources -Recurse -Force
-          }
-          if (Test-Path mock_mc\versions\26.3\26.3.jar) {
-            Copy-Item mock_mc\versions\26.3\26.3.jar $gameDir\26.3.jar -Force
-          }
+          # Unpack and bundle pre-generated resources
+          New-Item -ItemType Directory -Path "$gameDir\resources" -Force | Out-Null
+          tar -xzf resources_download\prepared-resources.tar.gz -C "$gameDir\resources"
+          Copy-Item "$gameDir\resources\*" "$gameDir" -Recurse -Force
 
           # Pre-seed conservative defaults for Haswell (HD 4400) / 4GB RAM
           @"

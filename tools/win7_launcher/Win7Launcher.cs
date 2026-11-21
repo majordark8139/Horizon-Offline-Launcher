@@ -169,6 +169,8 @@ public class Win7Launcher : Form
     private bool AreResourcesReady()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDir, "horizon-resources.json"))) return true;
+        if (File.Exists(Path.Combine(baseDir, "resources", "horizon-resources.json"))) return true;
         if (File.Exists(Path.Combine(baseDir, "assets", "minecraft", "sounds.json"))) return true;
         if (Directory.Exists(Path.Combine(baseDir, "resources"))) return true;
         return false;
@@ -328,7 +330,12 @@ public class Win7Launcher : Form
         ProcessStartInfo psi = new ProcessStartInfo();
         psi.FileName = clientExe;
         psi.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        psi.Arguments = "--home . --resources .";
+        string resPath = ".";
+        if (File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "horizon-resources.json")))
+        {
+            resPath = "resources";
+        }
+        psi.Arguments = "--home . --resources " + resPath;
 
         if (rbOpenGL.Checked)
         {

@@ -20,7 +20,11 @@ const TIMEOUT: Duration = Duration::from_secs(3600);
 /// pinned jars, a fresh preparation took 105 s with the defaults and 63-66 s with these, same
 /// output; the serial collector was as fast as the parallel one and its JVMs together took
 /// 1.25 GB instead of 2 GB.
-pub(crate) const BATCH_OPTIONS: [&str; 2] = ["-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC"];
+pub(crate) const BATCH_OPTIONS: [&str; 3] = [
+    "-XX:TieredStopAtLevel=1",
+    "-XX:+UseSerialGC",
+    "-Djava.awt.headless=true",
+];
 
 /// The variables a JVM reads extra options from. A collector chosen there, such as a player's
 /// global `-XX:+UseZGC`, stops a JVM started with [`BATCH_OPTIONS`]: "Multiple garbage collectors
