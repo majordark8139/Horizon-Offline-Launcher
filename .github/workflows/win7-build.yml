@@ -117,7 +117,7 @@ jobs:
           }
 
       - name: Build Windows 7 Patched Client and Prepare Tool
-        shell: bash
+        shell: pwsh
         run: |
           cargo build --release -p horizon-client --bin horizon-client -p horizon-prepare --bin horizon-prepare
 
