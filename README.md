@@ -5,7 +5,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gerdaroot/Horizon-Offline-Launcher/releases/latest/download/Horizon-Offline-Launcher-Setup.exe"><b>Download for Windows</b></a> ·
+  <a href="https://github.com/majordark8139/Horizon-Offline-Launcher/releases/tag/v0.1-alpha"><b>Download for Windows 7 SP1 (v0.1-alpha)</b></a> ·
+  <a href="#windows-7-sp1-edition">Windows 7 Guide</a> ·
+  <a href="https://github.com/gerdaroot/Horizon-Offline-Launcher/releases/latest/download/Horizon-Offline-Launcher-Setup.exe">Windows 10/11 Setup</a> ·
   <a href="#install">Install</a> ·
   <a href="#first-run">First run</a> ·
   <a href="#faq">FAQ</a> ·
@@ -22,6 +24,33 @@
 <p align="center">
   <img src="docs/media/launcher-play.webp" alt="The launcher's Home page" width="80%">
 </p>
+
+## Windows 7 SP1 Edition
+
+This fork adds native **Windows 7 SP1 (64-bit)** support for Horizon (Minecraft: Java Edition 26.3 in Rust), tested on legacy hardware (**Intel Core i3-4005U / Intel HD Graphics 4400 / 4 GB RAM**).
+
+<p align="center">
+  <a href="https://github.com/majordark8139/Horizon-Offline-Launcher/releases/download/v0.1-alpha/Horizon-Windows7-Portable.zip"><img src="https://img.shields.io/badge/Download%20Windows%207%20Portable-v0.1--alpha-2EA44F?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows 7 Portable"></a>
+</p>
+
+### How to Run on Windows 7 SP1
+1. **Update your GPU driver (Intel HD Graphics users):** For Haswell (HD 4400 / 4600), install Intel's final Windows 7 driver (**`15.36.41.5180` / `10.18.14.5180`**) to enable OpenGL 4.3.
+2. **Download [`Horizon-Windows7-Portable.zip`](https://github.com/majordark8139/Horizon-Offline-Launcher/releases/download/v0.1-alpha/Horizon-Windows7-Portable.zip)** and extract it into a clean folder.
+3. Run **`Horizon-Win7-Launcher.exe`** (ensure **OpenGL** is selected) and click **PLAY HORIZON** (or launch directly with **`Play-OpenGL.bat`**).
+   * **Zero Java required:** All Minecraft 26.3 game data, 3D collision tables, textures, fonts, languages, and all sounds/music are already pre-baked into `resources/`.
+
+### What Was Ported for Windows 7
+* **Windows 7 Kernel/API Polyfills (`tools/win7_compat/win7_compat.c`):**
+  * Deadlock-free `WaitOnAddress`, `WakeByAddressSingle`, and `WakeByAddressAll` built on native Vista/Win7 `SRWLOCK` + `CONDITION_VARIABLE`.
+  * `ProcessPrng` (`bcryptprimitives.dll`) polyfilled via `advapi32!SystemFunction036` (`RtlGenRandom`).
+  * `GetSystemTimePreciseAsFileTime` fallback to `GetSystemTimeAsFileTime`.
+* **App-Local COM & WinRT Shims (`tools/win7_compat/`):**
+  * `combase.dll`: forwards classic COM calls directly to Windows 7's `ole32.dll` and polyfills `CoIncrementMTAUsage` & `HSTRING`.
+  * `api-ms-win-core-winrt-l1-1-0.dll`: provides `RoGetActivationFactory` and routes `RoInitialize` / `RoUninitialize` through `ole32.dll`.
+* **Lightweight .NET 4.0 Launcher (`tools/win7_launcher/Win7Launcher.cs`):** Replaces the GPUI/DirectComposition launcher (which requires Windows 10 1803+) and injects OpenGL + low-RAM flags (`WGPU_BACKEND=gl`, `WGPU_DISCARD_HAL_LABELS=1`, `MIMALLOC_PURGE_DELAY=100`, `MIMALLOC_EAGER_COMMIT=0`).
+* **Two-Stage Cloud CI (`.github/workflows/win7-build.yml`):** Linux (`ubuntu-latest`) runs Java 25 headlessly to extract & verify complete resources (`horizon-prepare --prepare --complete`); Windows (`windows-latest`) compiles the Win7-patched Rust binaries, shims, and packages the portable zip.
+
+---
 
 ## What it is
 
