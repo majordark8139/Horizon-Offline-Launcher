@@ -130,11 +130,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          try {
-            gh release download nightly -R horizon-rust/horizon -p "horizon-windows-x64.zip"
-          } catch {
+          gh release download nightly -R horizon-rust/horizon -p "horizon-windows-x64.zip"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path horizon-windows-x64.zip)) {
             Write-Warning "Upstream nightly fetch failed; downloading from gerdaroot releases..."
             gh release download nightly -R gerdaroot/Horizon-Offline-Launcher -p "horizon-windows-x64.zip"
+          }
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path horizon-windows-x64.zip)) {
+            throw "Failed to download horizon-windows-x64.zip from upstream or gerdaroot"
           }
           7z x horizon-windows-x64.zip -o"dist-win7"
           Remove-Item horizon-windows-x64.zip
