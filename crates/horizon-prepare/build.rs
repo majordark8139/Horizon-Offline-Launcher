@@ -37,9 +37,11 @@ fn main() {
     println!("cargo:rustc-env=HORIZON_PREPARE_SOURCES_SHA256={hex}");
 
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        let win7_compat = dir.join("../../tools/win7_compat/win7_compat.c");
         cc::Build::new()
-            .file("src/win7_compat.c")
+            .file(&win7_compat)
             .compile("win7_compat");
+        println!("cargo:rerun-if-changed={}", win7_compat.display());
         println!("cargo:rustc-link-arg-bin=horizon-prepare=/FORCE:MULTIPLE");
         println!("cargo:rustc-link-lib=advapi32");
     }

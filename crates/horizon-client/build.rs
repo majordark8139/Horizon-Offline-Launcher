@@ -17,10 +17,11 @@ fn main() {
     // The game's main thread gets 8 MB of stack on Windows as on macOS and Linux (Windows gives 1
     // MB): splitscreen builds a joining player's `Game`, ~67 KB, deep in the event loop.
     if target_os == "windows" {
+        let win7_compat = root.join("tools/win7_compat/win7_compat.c");
         cc::Build::new()
-            .file("src/win7_compat.c")
+            .file(&win7_compat)
             .compile("win7_compat");
-        println!("cargo:rerun-if-changed=src/win7_compat.c");
+        println!("cargo:rerun-if-changed={}", win7_compat.display());
         println!("cargo:rustc-link-arg-bin=horizon-client=/FORCE:MULTIPLE");
         println!("cargo:rustc-link-lib=advapi32");
         println!("cargo:rerun-if-env-changed=WINDRES");

@@ -35,42 +35,86 @@ jobs:
       - name: Build Horizon Prepare Tool
         run: cargo build --release -p horizon-prepare --bin horizon-prepare
 
-      - name: Download Minecraft 26.3 Jars and Libraries
+      - name: Download Minecraft 26.3 Jars, Libraries, and Assets
         run: |
-          mkdir -p mock_mc/versions/26.3 mock_mc/libraries dist_resources
-          curl -sL -o mock_mc/versions/26.3/26.3.jar https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar
-          curl -sL -o server.jar https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
-          curl -sL -o mock_mc/versions/26.3/26.3.json https://piston-meta.mojang.com/v1/packages/11f1aefe473eefba0af62e3286c33b692807b2eb/26.3.json
+          mkdir -p mock_mc/versions/26.3 mock_mc/libraries mock_mc/assets/indexes mock_mc/assets/objects dist_resources
+          curl -fsSL -o mock_mc/versions/26.3/26.3.jar https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar
+          curl -fsSL -o server.jar https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+          curl -fsSL -o mock_mc/versions/26.3/26.3.json https://piston-meta.mojang.com/v1/packages/11f1aefe473eefba0af62e3286c33b692807b2eb/26.3.json
 
           python3 - << 'EOF'
-          import json, os, urllib.request
+          import concurrent.futures
+          import hashlib
+          import json
+          import os
+          import time
+          import urllib.request
 
           with open("mock_mc/versions/26.3/26.3.json") as f:
               data = json.load(f)
 
+          tasks = []
           for lib in data.get("libraries", []):
               art = lib.get("downloads", {}).get("artifact")
               if art:
                   dest = os.path.join("mock_mc/libraries", art["path"])
-                  os.makedirs(os.path.dirname(dest), exist_ok=True)
-                  if not os.path.exists(dest):
-                      urllib.request.urlretrieve(art["url"], dest)
+                  tasks.append((art["url"], dest, art.get("sha1")))
+
+          asset_info = data["assetIndex"]
+          idx_path = os.path.join("mock_mc/assets/indexes", f"{asset_info['id']}.json")
+          urllib.request.urlretrieve(asset_info["url"], idx_path)
+          with open(idx_path) as f:
+              objects = json.load(f).get("objects", {})
+
+          seen_hashes = set()
+          for info in objects.values():
+              h = info["hash"]
+              if h in seen_hashes:
+                  continue
+              seen_hashes.add(h)
+              prefix = h[:2]
+              url = f"https://resources.download.minecraft.net/{prefix}/{h}"
+              dest = os.path.join("mock_mc/assets/objects", prefix, h)
+              tasks.append((url, dest, h))
+
+          def fetch_one(item):
+              url, dest, expected_sha1 = item
+              os.makedirs(os.path.dirname(dest), exist_ok=True)
+              if os.path.isfile(dest):
+                  return
+              for attempt in range(4):
+                  try:
+                      req = urllib.request.Request(url, headers={"User-Agent": "Horizon-Win7-CI"})
+                      with urllib.request.urlopen(req, timeout=30) as resp:
+                          content = resp.read()
+                      if expected_sha1 and hashlib.sha1(content).hexdigest() != expected_sha1:
+                          raise ValueError(f"sha1 mismatch for {url}")
+                      with open(dest, "wb") as out:
+                          out.write(content)
+                      return
+                  except Exception as exc:
+                      if attempt == 3:
+                          raise RuntimeError(f"Failed {url}: {exc}") from exc
+                      time.sleep(1.0 * (attempt + 1))
+
+          with concurrent.futures.ThreadPoolExecutor(max_workers=24) as pool:
+              list(pool.map(fetch_one, tasks))
+          print(f"Downloaded/verified {len(tasks)} libraries + asset objects.")
           EOF
 
-      - name: Extract and Generate Game Resources
+      - name: Extract and Generate Complete Game Resources
         run: |
-          ./target/release/horizon-prepare --prepare --minecraft-dir mock_mc --server-jar server.jar --output dist_resources
+          ./target/release/horizon-prepare --prepare --complete --minecraft-dir mock_mc --server-jar server.jar --output dist_resources
 
       - name: Pack Prepared Resources
         run: |
-          cp mock_mc/versions/26.3/26.3.jar dist_resources/26.3.jar
-          tar -czf prepared-resources.tar.gz -C dist_resources .
+          tar -cf prepared-resources.tar -C dist_resources .
 
       - name: Upload Resources Artifact
         uses: actions/upload-artifact@v4
         with:
           name: prepared-resources
-          path: prepared-resources.tar.gz
+          path: prepared-resources.tar
           retention-days: 1
 
   build-win7:
@@ -167,10 +211,9 @@ jobs:
           Write-Host "=== Auditing horizon-client.exe IAT imports ==="
           dumpbin /imports (Join-Path $gameDir "horizon-client.exe") | Select-String -Pattern "^\s+\S+\.dll$|RoGet|CoIncrement|ProcessPrng|WaitOnAddress|Precise" -Context 0,1
 
-          # Unpack and bundle pre-generated resources
+          # Unpack and bundle pre-generated resources into resources/ (no duplicate root copy)
           New-Item -ItemType Directory -Path "$gameDir\resources" -Force | Out-Null
-          tar -xzf resources_download\prepared-resources.tar.gz -C "$gameDir\resources"
-          Copy-Item "$gameDir\resources\*" "$gameDir" -Recurse -Force
+          tar -xf resources_download\prepared-resources.tar -C "$gameDir\resources"
 
           # Pre-seed conservative defaults for Haswell (HD 4400) / 4GB RAM
           @"
@@ -178,14 +221,16 @@ jobs:
           "@ | Set-Content (Join-Path $gameDir "options.txt")
 
           @"
-          opengl
-          renderDistance: 6
-          lodDistance: 0
-          hdr: false
-          dynamicResolution: true
-          fxaa: false
-          taa: false
-          workerThreads: 2
+          preset:performance
+          graphicsApi:opengl
+          lodDistance:0
+          gpuCulling:false
+          hdr:false
+          fxaa:false
+          taa:false
+          textureBudgetMiB:256
+          workers:2
+          caveCulling:true
           "@ | Set-Content (Join-Path $gameDir "horizon-graphics.txt")
 
           # Create batch launch scripts
@@ -200,7 +245,7 @@ jobs:
           set MIMALLOC_PURGE_DELAY=100
           set MIMALLOC_EAGER_COMMIT=0
           set HORIZON_TELEMETRY_URL=off
-          horizon-client.exe --home . --resources .
+          horizon-client.exe --home . --resources resources
           pause
           "@ | Set-Content (Join-Path $gameDir "Play-OpenGL.bat")
 
@@ -215,12 +260,12 @@ jobs:
           set MIMALLOC_PURGE_DELAY=100
           set MIMALLOC_EAGER_COMMIT=0
           set HORIZON_TELEMETRY_URL=off
-          horizon-client.exe --home . --resources .
+          horizon-client.exe --home . --resources resources
           pause
           "@ | Set-Content (Join-Path $gameDir "Play-Vulkan.bat")
 
           # Create distribution zip
-          7z a -tzip Horizon-Windows7-Portable.zip "$gameDir\*"
+          7z a -tzip -mx=3 Horizon-Windows7-Portable.zip "$gameDir\*"
           Get-Item Horizon-Windows7-Portable.zip
 
       - name: Upload Artifact
