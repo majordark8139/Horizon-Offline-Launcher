@@ -8,6 +8,7 @@ on:
       - 'crates/**'
       - '.github/workflows/win7-build.yml'
       - 'tools/win7_launcher/**'
+      - 'tools/win7_compat/**'
 
 permissions:
   contents: write
@@ -96,13 +97,16 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Compile Windows 7 combase.dll Proxy
+      - name: Compile Windows 7 Compatibility Proxies
         shell: pwsh
         run: |
           cl.exe /O2 /LD /MT /W3 tools\win7_compat\combase.c /link /DEF:tools\win7_compat\combase.def /OUT:combase.dll kernel32.lib ole32.lib
-          if (-not (Test-Path combase.dll)) {
-            throw "Failed to compile combase.dll"
+          cl.exe /O2 /LD /MT /W3 tools\win7_compat\winrt_shim.c /link /DEF:tools\win7_compat\api-ms-win-core-winrt-l1-1-0.def /OUT:api-ms-win-core-winrt-l1-1-0.dll kernel32.lib ole32.lib
+          if (-not (Test-Path combase.dll) -or -not (Test-Path api-ms-win-core-winrt-l1-1-0.dll)) {
+            throw "Failed to compile Win7 compatibility DLLs"
           }
+          dumpbin /exports combase.dll
+          dumpbin /exports api-ms-win-core-winrt-l1-1-0.dll
 
       - name: Compile Windows 7 GUI Launcher
         shell: pwsh
@@ -156,9 +160,10 @@ jobs:
             Copy-Item target\release\horizon-prepare.exe $gameDir -Force
           }
           Copy-Item Horizon-Win7-Launcher.exe $gameDir -Force
-          if (Test-Path combase.dll) {
-            Copy-Item combase.dll $gameDir -Force
-          }
+          Copy-Item combase.dll $gameDir -Force
+          Copy-Item api-ms-win-core-winrt-l1-1-0.dll $gameDir -Force
+          Write-Host "=== Auditing horizon-client.exe IAT imports ==="
+          dumpbin /imports (Join-Path $gameDir "horizon-client.exe") | Select-String -Pattern "^\s+\S+\.dll$|RoGet|CoIncrement|ProcessPrng|WaitOnAddress|Precise" -Context 0,1
 
           # Unpack and bundle pre-generated resources
           New-Item -ItemType Directory -Path "$gameDir\resources" -Force | Out-Null

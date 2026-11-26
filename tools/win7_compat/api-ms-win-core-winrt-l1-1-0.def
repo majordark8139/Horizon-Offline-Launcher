@@ -1,0 +1,10 @@
+LIBRARY api-ms-win-core-winrt-l1-1-0
+EXPORTS
+    RoInitialize
+    RoUninitialize
+    RoGetActivationFactory
+    RoActivateInstance
+    RoGetAgileReference
+    RoRegisterActivationFactories
+    RoRevokeActivationFactories
+    RoGetParameterizedTypeInstanceIID
